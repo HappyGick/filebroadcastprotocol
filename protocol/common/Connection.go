@@ -28,7 +28,7 @@ func (c *Connection) Receive() ([]byte, error) {
 	}
 	buf := make([]byte, binary.BigEndian.Uint64(buflen))
 	len, err := (*c.conn).Read(buf)
-	fmt.Println("Received ", len, " bytes from ", c.GetAddr())
+	fmt.Println("Received", len, "bytes from", c.GetAddr())
 	return buf, err
 }
 
@@ -36,7 +36,7 @@ func (c Connection) Send(data []byte) error {
 	length := make([]byte, 8)
 	binary.BigEndian.PutUint64(length, uint64(len(data)))
 	len, err := (*c.conn).Write(append(length, data...))
-	fmt.Println("Sent ", len, " bytes to ", c.GetAddr())
+	fmt.Println("Sent", len, "bytes to", c.GetAddr())
 	return err
 }
 
