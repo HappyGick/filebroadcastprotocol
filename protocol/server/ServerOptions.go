@@ -11,7 +11,7 @@ func DefaultOptions() ServerOptions {
 	return ServerOptions{
 		32000,
 		64000,
-		3000,
+		5000,
 		"localhost",
 	}
 }

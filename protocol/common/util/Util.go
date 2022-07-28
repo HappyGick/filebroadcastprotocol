@@ -23,3 +23,12 @@ func ReadUntil(reader *bytes.Reader, marker byte) ([]byte, error) {
 	w.Flush()
 	return buf.Bytes(), nil
 }
+
+func ReportError(errs ...ErrorStorer) error {
+	for _, e := range errs {
+		if e != nil {
+			return e.GetError()
+		}
+	}
+	return nil
+}

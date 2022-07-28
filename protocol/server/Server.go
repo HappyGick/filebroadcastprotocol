@@ -2,11 +2,13 @@ package server
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os"
 
 	"github.com/HappyGick/filebroadcastprotocol/protocol/common"
-	"github.com/HappyGick/filebroadcastprotocol/protocol/server/commands"
+	"github.com/HappyGick/filebroadcastprotocol/protocol/server/commands/JoinChannel"
+	"github.com/HappyGick/filebroadcastprotocol/protocol/server/commands/SendToChannel"
 )
 
 type HandleConnectionFunction func(conn common.Connection)
@@ -41,11 +43,16 @@ func (s FileBroadcastServer) handleConnectionDefault(conn *common.Connection) {
 	fmt.Println("Successfully connected to", conn.GetAddr())
 	for {
 		data, err := conn.Receive()
-		if err != nil {
+
+		if err == io.EOF {
+			continue
+		} else if err != nil {
 			fmt.Println("Error receiving data from", conn.GetAddr(), ":", err)
 			return
 		}
+
 		err = s.CommHandler.Handle(data, conn)
+
 		if err != nil {
 			fmt.Println("Error processing command from", conn.GetAddr(), ":", err)
 			return
@@ -54,7 +61,15 @@ func (s FileBroadcastServer) handleConnectionDefault(conn *common.Connection) {
 }
 
 func (s FileBroadcastServer) setupCommands() {
-	s.CommHandler.RegisterCommand(commands.NewSendToChannelCommand())
+	RegisterCommand(&s.CommHandler, SendToChannel.NewSendToChannelCommand())
+	RegisterCommand(&s.CommHandler,
+		JoinChannel.NewJoinChannelCommand(
+			func(ret JoinChannel.JoinChannelReturn) {
+				fmt.Println(ret.Sender.GetAddr(), "successfully joined channel", ret.ChannelId)
+			},
+			func(err error) { fmt.Println(err) },
+		),
+	)
 }
 
 func (s FileBroadcastServer) Listen() {

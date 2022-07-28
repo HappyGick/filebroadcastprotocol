@@ -1,13 +1,11 @@
 package client
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"net"
 
 	"github.com/HappyGick/filebroadcastprotocol/protocol/common"
+	"github.com/HappyGick/filebroadcastprotocol/protocol/common/util"
 )
 
 type FileBroadcastClient struct {
@@ -45,40 +43,53 @@ func (c *FileBroadcastClient) Disconnect() error {
 	return c.conn.Close()
 }
 
-func (c *FileBroadcastClient) SendFile(channel int, path string) ([]byte, error) {
+func (c *FileBroadcastClient) JoinChannel(channel uint64) ([]byte, error) {
+	msg := util.NewByteBuffer([]byte{}).Append([]byte("CHAN\x00")).AppendUint64BE(channel)
+	err := util.ReportError(msg)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.send(msg.Bytes())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return c.receive()
+}
+
+func (c *FileBroadcastClient) SendFile(channel uint64, path string) ([]byte, error) {
 	file, err := common.FileRef(path)
 
 	if err != nil {
 		return nil, err
 	}
 
-	data, err := file.Read()
+	data := util.NewByteBuffer([]byte{}).AppendFile(file)
+	name := file.GetName()
+	sizebytes := util.NewByteBuffer([]byte{}).AppendUint64BE(file.GetSize())
+	channelbytes := util.NewByteBuffer([]byte{}).AppendUint64BE(channel)
+	msg := util.NewByteBuffer([]byte{}).AppendMultiple(
+		[]byte("SEND\x00"),
+		channelbytes.Bytes(),
+		[]byte(name+"\x00"),
+		sizebytes.Bytes(),
+		data.Bytes(),
+	)
+
+	err = util.ReportError(data, sizebytes, channelbytes, msg)
 
 	if err != nil {
 		return nil, err
 	}
-
-	name := file.GetName()
-	sizebytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(sizebytes, file.GetSize())
-	channelbytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(channelbytes, uint64(channel))
-
-	var msg bytes.Buffer
-	w := bufio.NewWriter(&msg)
-	w.Write([]byte("SEND\x00"))
-	w.Write(channelbytes)
-	w.Write([]byte(name + "\x00"))
-	w.Write(sizebytes)
-	w.Write(data)
-	w.Flush()
 
 	err = c.send(msg.Bytes())
+
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := c.receive()
-
-	return resp, err
+	return c.receive()
 }

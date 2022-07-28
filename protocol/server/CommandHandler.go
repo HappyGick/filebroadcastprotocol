@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 
@@ -10,20 +9,17 @@ import (
 	"github.com/HappyGick/filebroadcastprotocol/protocol/server/commands"
 )
 
-type CommandSuccessFunc func()
-type CommandFailFunc func(err string)
-
 type ServerCommandHandler struct {
-	commands map[string]commands.ServerCommand
+	commands map[string]commands.CommandBase
 }
 
 func NewServerCommandHandler() ServerCommandHandler {
 	return ServerCommandHandler{
-		map[string]commands.ServerCommand{},
+		map[string]commands.CommandBase{},
 	}
 }
 
-func (ch *ServerCommandHandler) RegisterCommand(newCommand commands.ServerCommand) {
+func RegisterCommand[T any](ch *ServerCommandHandler, newCommand commands.ServerCommand[T]) {
 	ch.commands[newCommand.GetName()] = newCommand
 }
 
@@ -35,6 +31,7 @@ func (ch *ServerCommandHandler) Handle(command []byte, sender *common.Connection
 	}
 
 	if val, ok := ch.commands[name]; ok {
+		// por qué no tiene polimorfismo paramétrico? wtf
 		code, msg := val.Execute(sender, args)
 		fmt.Println("Command result:", code, msg)
 	} else {
@@ -46,19 +43,9 @@ func (ch *ServerCommandHandler) Handle(command []byte, sender *common.Connection
 }
 
 func preprocessCommand(command []byte) (string, []byte, error) {
-	var name bytes.Buffer
-	var args bytes.Buffer
 	r := bytes.NewReader(command)
-	w := bufio.NewWriter(&name)
-	buf, err := util.ReadUntil(r, 0)
-	if err != nil {
-		return "", nil, err
-	}
-	w.Write(buf)
-	w.Flush()
-	w = bufio.NewWriter(&args)
-	r.WriteTo(w)
-	w.Flush()
+	name := util.NewByteBuffer([]byte{}).AppendUntil(r, 0)
+	args := util.NewByteBuffer([]byte{}).AppendAll(r)
 
-	return name.String(), args.Bytes(), nil
+	return name.String(), args.Bytes(), util.ReportError(name, args)
 }
